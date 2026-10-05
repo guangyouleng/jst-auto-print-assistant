@@ -802,25 +802,44 @@ class PrintProfileBoundaryTests(unittest.TestCase):
             [item["o_id"] for item in result["selected"]], ["10", "13"]
         )
 
-    def test_server_clusters_variants_by_exact_jst_product_id(self):
-        def candidate(o_id, product_id):
+    def test_server_sorts_by_product_then_sku(self):
+        def candidate(o_id, product_id, sku_id):
             return {
                 "o_id": o_id,
-                "items": [{"product_id": product_id}],
+                "items": [{"product_id": product_id, "sku_id": sku_id}],
             }
 
         rows = [
-            candidate("1", "A"),
-            candidate("2", "B"),
-            candidate("3", "A"),
-            candidate("4", ""),
-            candidate("5", "B"),
+            candidate("1", "B", "B-70"),
+            candidate("2", "A", "A-80"),
+            candidate("3", "A", "A-70"),
+            candidate("4", "", ""),
+            candidate("5", "B", "B-80"),
         ]
 
         grouped = api.group_candidates_by_product(rows)
 
         self.assertEqual(
-            [item["o_id"] for item in grouped], ["1", "3", "2", "5", "4"]
+            [item["o_id"] for item in grouped],
+            ["3", "2", "1", "5", "4"],
+        )
+
+    def test_server_sorts_sku_naturally_within_product(self):
+        def candidate(o_id, sku_id):
+            return {"o_id": o_id, "items": [{"product_id": "A", "sku_id": sku_id}]}
+
+        rows = [
+            candidate("1", "A-10"),
+            candidate("2", "A-2"),
+            candidate("3", "A-10"),
+            candidate("4", "A-2"),
+        ]
+
+        grouped = api.group_candidates_by_product(rows)
+
+        self.assertEqual(
+            [item["o_id"] for item in grouped],
+            ["2", "4", "1", "3"],
         )
 
     def test_write_readback_retries_temporary_not_found_without_reclick(self):

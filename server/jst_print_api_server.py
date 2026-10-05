@@ -149,6 +149,15 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
     return major, minor, patch
 
 
+def _natural_sort_key(value: str) -> tuple[tuple[int, object], ...]:
+    """Numeric-aware sort key so 'A2' sorts before 'A10'."""
+
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part.lower())
+        for part in re.split(r"(\d+)", str(value))
+    )
+
+
 def supported_client_user_agent(value: str) -> bool:
     match = CLIENT_USER_AGENT_RE.fullmatch(str(value).strip())
     if match is None:
@@ -987,31 +996,43 @@ def candidate_print_profile(candidate: dict[str, Any]) -> str:
     return carrier_id
 
 
-def _candidate_product_group(candidate: dict[str, Any]) -> Optional[tuple[str, ...]]:
-    """Return an exact JST main-product signature, or None when unprovable."""
+def _candidate_product_group(
+    candidate: dict[str, Any],
+) -> Optional[tuple[tuple[str, str], ...]]:
+    """Return the order's (货号, SKU 编号) signature, or None when unprovable.
+
+    Keeps the original 货号 grouping, then sorts by SKU 编号 within it, so one
+    product's sizes stay together and print in size order.
+    """
 
     items = candidate.get("items")
     if not isinstance(items, list) or not items:
         return None
-    product_ids: list[str] = []
+    pairs: list[tuple[str, str]] = []
     for item in items:
         if not isinstance(item, dict):
             return None
         product_id = item.get("product_id")
-        if not isinstance(product_id, str) or not product_id.strip():
+        sku_id = item.get("sku_id")
+        if (
+            not isinstance(product_id, str)
+            or not product_id.strip()
+            or not isinstance(sku_id, str)
+            or not sku_id.strip()
+        ):
             return None
-        product_ids.append(product_id.strip())
-    return tuple(sorted(set(product_ids)))
+        pairs.append((product_id.strip(), sku_id.strip()))
+    return tuple(sorted(set(pairs)))
 
 
 def group_candidates_by_product(
     candidates: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Keep exact same-product variants adjacent while preserving normal order.
+    """Group by 货号 then SKU 编号, sorted by natural order.
 
-    JST ``i_id`` is the authoritative main-product identity.  Candidates
-    without a complete identity use a unique fallback key and therefore keep
-    their original relative order instead of being grouped by name heuristics.
+    Keeps the original 货号 grouping, then orders each product's variants by
+    SKU 编号 (e.g. ``…70…`` before ``…80…``).  Candidates without a complete
+    identity keep their relative order last.
     """
 
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
@@ -1025,6 +1046,13 @@ def group_candidates_by_product(
             groups[key] = []
             order.append(key)
         groups[key].append(candidate)
+    order.sort(key=lambda key: (
+        (1, ()) if key[0] != "product"
+        else (0, tuple(
+            (_natural_sort_key(pid), _natural_sort_key(sid))
+            for pid, sid in key[1:]
+        ))
+    ))
     return [candidate for key in order for candidate in groups[key]]
 
 

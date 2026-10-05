@@ -531,6 +531,15 @@ def _is_ascii_order_id(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9]{1,20}", value) is not None
 
 
+def _natural_sort_key(value: str) -> tuple[tuple[int, object], ...]:
+    """Numeric-aware sort key so 'A2' sorts before 'A10'."""
+
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part.lower())
+        for part in re.split(r"(\d+)", str(value))
+    )
+
+
 def load_workstation_id(path: Path = WORKSTATION_ID_FILE) -> str:
     """Return a stable, non-business workstation identity stored outside config."""
 
@@ -9605,27 +9614,35 @@ class AutomationEngine:
         return matches[0]
 
     @staticmethod
-    def _job_product_group(job: dict[str, Any]) -> Optional[tuple[str, ...]]:
-        """Return a proven JST main-product signature for warehouse sorting."""
+    def _job_product_group(
+        job: dict[str, Any],
+    ) -> Optional[tuple[tuple[str, str], ...]]:
+        """Return the job's (货号, SKU 编号) signature, or None when unprovable."""
 
         items = job.get("plan", {}).get("items")
         if not isinstance(items, list) or not items:
             return None
-        product_ids: list[str] = []
+        pairs: list[tuple[str, str]] = []
         for item in items:
             if not isinstance(item, dict):
                 return None
             product_id = item.get("product_id")
-            if not isinstance(product_id, str) or not product_id.strip():
+            sku_id = item.get("sku_id")
+            if (
+                not isinstance(product_id, str)
+                or not product_id.strip()
+                or not isinstance(sku_id, str)
+                or not sku_id.strip()
+            ):
                 return None
-            product_ids.append(product_id.strip())
-        return tuple(sorted(set(product_ids)))
+            pairs.append((product_id.strip(), sku_id.strip()))
+        return tuple(sorted(set(pairs)))
 
     @classmethod
     def _prioritize_product_groups(
         cls, jobs: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Cluster exact same-product variants; otherwise preserve queue order."""
+        """Group by 货号 then SKU 编号, sorted by natural order."""
 
         groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
         order: list[tuple[Any, ...]] = []
@@ -9640,6 +9657,13 @@ class AutomationEngine:
                 groups[key] = []
                 order.append(key)
             groups[key].append(job)
+        order.sort(key=lambda key: (
+            (1, ()) if key[0] != "product"
+            else (0, tuple(
+                (_natural_sort_key(pid), _natural_sort_key(sid))
+                for pid, sid in key[1:]
+            ))
+        ))
         return [job for key in order for job in groups[key]]
 
     @classmethod

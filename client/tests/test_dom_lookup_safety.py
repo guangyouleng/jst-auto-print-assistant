@@ -567,31 +567,47 @@ class DomLookupSafetyTests(unittest.TestCase):
 
         self.assertEqual(batch, [get_a, get_b])
 
-    def test_print_queue_clusters_exact_main_product_variants(self):
-        def job(label, product_id):
-            item = {"sku_id": f"SKU-{label}", "sku_name": label}
-            if product_id is not None:
-                item["product_id"] = product_id
+    def test_print_queue_sorts_by_product_then_sku(self):
+        def job(label, product_id, sku_id):
+            item = {"product_id": product_id, "sku_id": sku_id, "sku_name": label}
             return {"label": label, "plan": {"items": [item]}}
 
         jobs = [
-            job("A-red", "A"),
-            job("B-small", "B"),
-            job("A-blue", "A"),
-            job("unknown", None),
-            job("B-large", "B"),
+            job("B-70", "B", "B-70"),
+            job("A-80", "A", "A-80"),
+            job("A-70", "A", "A-70"),
+            job("B-80", "B", "B-80"),
         ]
 
         ordered = app.AutomationEngine._prioritize_product_groups(jobs)
 
         self.assertEqual(
             [item["label"] for item in ordered],
-            ["A-red", "A-blue", "B-small", "B-large", "unknown"],
+            ["A-70", "A-80", "B-70", "B-80"],
         )
 
-    def test_print_queue_without_product_identity_keeps_normal_order(self):
+    def test_print_queue_sorts_sku_naturally_within_product(self):
+        def job(label, sku_id):
+            item = {"product_id": "A", "sku_id": sku_id, "sku_name": label}
+            return {"label": label, "plan": {"items": [item]}}
+
         jobs = [
-            {"label": label, "plan": {"items": [{"sku_id": label}]}}
+            job("A-10-a", "A-10"),
+            job("A-2-a", "A-2"),
+            job("A-10-b", "A-10"),
+            job("A-2-b", "A-2"),
+        ]
+
+        ordered = app.AutomationEngine._prioritize_product_groups(jobs)
+
+        self.assertEqual(
+            [item["label"] for item in ordered],
+            ["A-2-a", "A-2-b", "A-10-a", "A-10-b"],
+        )
+
+    def test_print_queue_without_product_or_sku_keeps_normal_order(self):
+        jobs = [
+            {"label": label, "plan": {"items": [{"sku_name": label}]}}
             for label in ("first", "second", "third")
         ]
 
