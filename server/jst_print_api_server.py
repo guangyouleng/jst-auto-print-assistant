@@ -1022,7 +1022,10 @@ def _candidate_product_group(
         ):
             return None
         pairs.append((product_id.strip(), sku_id.strip()))
-    return tuple(sorted(set(pairs)))
+    return tuple(sorted(
+        set(pairs),
+        key=lambda pair: (_natural_sort_key(pair[0]), _natural_sort_key(pair[1])),
+    ))
 
 
 def group_candidates_by_product(
@@ -1030,30 +1033,42 @@ def group_candidates_by_product(
 ) -> list[dict[str, Any]]:
     """Group by 货号 then SKU 编号, sorted by natural order.
 
-    Keeps the original 货号 grouping, then orders each product's variants by
+    Groups by the complete 货号 set, then orders variants within that set by
     SKU 编号 (e.g. ``…70…`` before ``…80…``).  Candidates without a complete
     identity keep their relative order last.
     """
 
-    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    groups: dict[tuple[Any, ...], list[tuple[tuple[Any, ...], dict[str, Any]]]] = {}
     order: list[tuple[Any, ...]] = []
     for index, candidate in enumerate(candidates):
         signature = _candidate_product_group(candidate)
+        # Group by the exact complete product set before comparing any SKU.
+        products = (
+            tuple(sorted({pid for pid, _sid in signature}, key=_natural_sort_key))
+            if signature is not None else ()
+        )
         key: tuple[Any, ...] = (
-            ("product",) + signature if signature is not None else ("order", index)
+            ("product",) + products if signature is not None else ("order", index)
+        )
+        sku_key = (
+            tuple((_natural_sort_key(pid), _natural_sort_key(sid)) for pid, sid in signature)
+            if signature is not None else ()
         )
         if key not in groups:
             groups[key] = []
             order.append(key)
-        groups[key].append(candidate)
+        groups[key].append((sku_key, candidate))
     order.sort(key=lambda key: (
-        (1, ()) if key[0] != "product"
-        else (0, tuple(
-            (_natural_sort_key(pid), _natural_sort_key(sid))
-            for pid, sid in key[1:]
-        ))
+        (0, tuple(_natural_sort_key(pid) for pid in key[1:]))
+        if key[0] == "product" else (1, ())
     ))
-    return [candidate for key in order for candidate in groups[key]]
+    # Stable sorting preserves incoming order for equal SKU signatures and
+    # keeps incomplete identities last in their original order.
+    return [
+        candidate
+        for key in order
+        for _sku_key, candidate in sorted(groups[key], key=lambda entry: entry[0])
+    ]
 
 
 def _plan(body: dict[str, Any], store: LeaseStore) -> dict[str, Any]:

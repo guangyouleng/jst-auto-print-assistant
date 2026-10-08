@@ -9636,35 +9636,48 @@ class AutomationEngine:
             ):
                 return None
             pairs.append((product_id.strip(), sku_id.strip()))
-        return tuple(sorted(set(pairs)))
+        return tuple(sorted(
+            set(pairs),
+            key=lambda pair: (_natural_sort_key(pair[0]), _natural_sort_key(pair[1])),
+        ))
 
     @classmethod
     def _prioritize_product_groups(
         cls, jobs: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Group by 货号 then SKU 编号, sorted by natural order."""
+        """Group by the complete 货号 set, then naturally sort SKU details."""
 
-        groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+        groups: dict[tuple[Any, ...], list[tuple[tuple[Any, ...], dict[str, Any]]]] = {}
         order: list[tuple[Any, ...]] = []
         for index, job in enumerate(jobs):
             signature = cls._job_product_group(job)
+            # Group by the exact complete product set before comparing any SKU.
+            products = (
+                tuple(sorted({pid for pid, _sid in signature}, key=_natural_sort_key))
+                if signature is not None else ()
+            )
             key: tuple[Any, ...] = (
-                ("product",) + signature
-                if signature is not None
-                else ("order", index)
+                ("product",) + products if signature is not None else ("order", index)
+            )
+            sku_key = (
+                tuple((_natural_sort_key(pid), _natural_sort_key(sid)) for pid, sid in signature)
+                if signature is not None else ()
             )
             if key not in groups:
                 groups[key] = []
                 order.append(key)
-            groups[key].append(job)
+            groups[key].append((sku_key, job))
         order.sort(key=lambda key: (
-            (1, ()) if key[0] != "product"
-            else (0, tuple(
-                (_natural_sort_key(pid), _natural_sort_key(sid))
-                for pid, sid in key[1:]
-            ))
+            (0, tuple(_natural_sort_key(pid) for pid in key[1:]))
+            if key[0] == "product" else (1, ())
         ))
-        return [job for key in order for job in groups[key]]
+        # Stable sorting preserves incoming order for equal SKU signatures and
+        # keeps incomplete identities last in their original order.
+        return [
+            job
+            for key in order
+            for _sku_key, job in sorted(groups[key], key=lambda entry: entry[0])
+        ]
 
     @classmethod
     def _next_preparation_batch(
