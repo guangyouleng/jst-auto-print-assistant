@@ -37,3 +37,9 @@ reverse-records/
 .build-venv-win10/
 .runtime-venv-win10/
 dist_win10_x64/
+
+# Local JST OpenAPI credentials
+jst_openapi_config.json
+
+jst_openapi_config.dpapi
+.jst-credentials-*

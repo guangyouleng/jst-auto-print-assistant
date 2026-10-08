@@ -132,9 +132,7 @@ BENIGN_RELATED_ACTIONS = frozenset(
 SPLIT_ORDER_BLOCKER = "同一内部订单存在多个出库单，操作历史无法按出库单归属，禁止自动处理"
 BUSINESS_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
-DEFAULT_BRIDGE_ROOT = Path(
-    "/root/.qwenpaw/workspaces/default/skills/erp321-workspace/erp-bridge"
-)
+DEFAULT_BRIDGE_ROOT = ""
 
 
 @dataclass
@@ -959,17 +957,12 @@ def split_order_ids(rows: Iterable[dict[str, Any]]) -> set[str]:
     }
 
 
-def run_live_readonly(args: argparse.Namespace) -> dict[str, Any]:
-    bridge_root = Path(args.bridge_root)
-    if not (bridge_root / "app" / "clients" / "jst_client.py").exists():
-        raise RuntimeError(f"JST client not found under {bridge_root}")
-    sys.path.insert(0, str(bridge_root))
-    from app.clients.jst_client import JSTClient  # type: ignore
-
-    # JST business windows are always Asia/Shanghai, independent of host TZ.
+def run_live_readonly(args: argparse.Namespace, *, client: Any = None) -> dict[str, Any]:
+    if client is None:
+        client = _load_jst_client(args.bridge_root)
+    # JST business windows always use Asia/Shanghai.
     current_business_time = business_now()
     begin = current_business_time - timedelta(hours=args.lookback_hours)
-    client = JSTClient()
     rows = discover_orders(
         client,
         begin=begin,
@@ -1108,16 +1101,12 @@ def run_seed_candidate_cache(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.candidate_cache:
         raise RuntimeError("--seed-candidate-cache requires --candidate-cache")
-    bridge_root = Path(args.bridge_root)
-    if not (bridge_root / "app" / "clients" / "jst_client.py").exists():
-        raise RuntimeError(f"JST client not found under {bridge_root}")
-    sys.path.insert(0, str(bridge_root))
-    from app.clients.jst_client import JSTClient  # type: ignore
+    client = _load_jst_client(args.bridge_root)
 
     current_business_time = business_now()
     begin = current_business_time - timedelta(hours=args.lookback_hours)
     rows = _page_all(
-        JSTClient(),
+        client,
         "query_orders_out",
         modified_begin=begin.strftime("%Y-%m-%d %H:%M:%S"),
         modified_end=current_business_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1221,6 +1210,9 @@ def _found_inspect_result(
 
 
 def _load_jst_client(bridge_root_value: str) -> Any:
+    if not bridge_root_value:
+        from jst_openapi import JSTReadonlyClient
+        return JSTReadonlyClient(Path.home() / ".jst-auto-print" / "jst_openapi_config.json")
     bridge_root = Path(bridge_root_value)
     if not (bridge_root / "app" / "clients" / "jst_client.py").exists():
         raise RuntimeError(f"JST client not found under {bridge_root}")
@@ -1230,10 +1222,11 @@ def _load_jst_client(bridge_root_value: str) -> Any:
     return JSTClient()
 
 
-def run_inspect_order(args: argparse.Namespace) -> dict[str, Any]:
+def run_inspect_order(args: argparse.Namespace, *, client: Any = None) -> dict[str, Any]:
     """Read back one exact internal/outbound pair without exposing PII."""
     current_business_time = business_now()
-    client = _load_jst_client(args.bridge_root)
+    if client is None:
+        client = _load_jst_client(args.bridge_root)
     rows = _page_all(
         client,
         "query_orders_out",
@@ -1274,7 +1267,7 @@ def run_inspect_order(args: argparse.Namespace) -> dict[str, Any]:
     )
 
 
-def run_inspect_batch(args: argparse.Namespace) -> dict[str, Any]:
+def run_inspect_batch(args: argparse.Namespace, *, client: Any = None) -> dict[str, Any]:
     """Read up to ten exact pairs with one order query and one bulk action pass."""
 
     requested_pairs = list(args.inspect_pairs or [])
@@ -1282,7 +1275,8 @@ def run_inspect_batch(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError("batch inspect requires between one and ten pairs")
     requested_o_ids = {o_id for o_id, _io_id in requested_pairs}
     current_business_time = business_now()
-    client = _load_jst_client(args.bridge_root)
+    if client is None:
+        client = _load_jst_client(args.bridge_root)
     rows = _page_all(
         client,
         "query_orders_out",

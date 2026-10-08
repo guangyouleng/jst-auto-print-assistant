@@ -55,7 +55,7 @@ class ExternalOrderSkipTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             deployment = root / 'deployment.json'
-            deployment.write_text('{"api_token": "' + 'a' * 32 + '"}')
+            deployment.write_text('{"backend_mode": "local"}')
             with mock.patch.object(app, 'ensure_app_dirs'), mock.patch.object(app, 'CONFIG_FILE', root / 'settings.json'), mock.patch.object(app, 'deployment_config_path', return_value=deployment):
                 self.assertFalse(app.load_settings().skip_external_orders)
                 settings = app.load_settings()

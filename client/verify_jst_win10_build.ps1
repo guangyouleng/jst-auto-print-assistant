@@ -103,8 +103,10 @@ function Assert-DeploymentConfig {
     $token = [string]$Config.api_token
     $debugPort = [int]$Config.debug_port
     $loopSeconds = [int]$Config.loop_seconds
-    Assert-True ($apiUrl -match '^https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+$') "deployment config must use an HTTPS API URL"
-    Assert-True ($token -match '^[A-Za-z0-9_-]{32,128}$') "deployment API credential must be 32-128 ASCII letters, digits, underscores or hyphens"
+    if ([string]$Config.backend_mode -ne "local") {
+        Assert-True ($apiUrl -match '^https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+$') "deployment config must use an HTTPS API URL"
+        Assert-True ($token -match '^[A-Za-z0-9_-]{32,128}$') "deployment API credential must be 32-128 ASCII letters, digits, underscores or hyphens"
+    }
     Assert-True ($debugPort -ge 1024 -and $debugPort -le 65535) "deployment debug port is invalid"
     Assert-True ($loopSeconds -eq 5) "deployment loop_seconds must be 5 for V0.5.25"
 }
