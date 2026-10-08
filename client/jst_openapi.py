@@ -9,7 +9,6 @@ import hashlib
 import json
 import os
 import re
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -44,9 +43,6 @@ class JSTReadonlyClient:
     def credentials(self):
         if self._credentials is not None:
             values = dict(self._credentials)
-        elif sys.platform == "win32":
-            from jst_credentials import CredentialStore
-            values = CredentialStore(self.config_path).load()
         else:
             values = {}
             if self.config_path.exists():

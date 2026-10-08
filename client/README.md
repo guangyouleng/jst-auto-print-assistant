@@ -14,7 +14,7 @@ cd client
 Copy-Item jst_operator_config.example.json jst_operator_config.json
 ```
 
-默认单机模式无需后台地址或 API token。Windows 首次启动在“聚水潭凭据设置”窗口填写三项查询凭据，验证后使用 DPAPI 加密保存。
+默认单机模式无需后台地址或 API token。聚水潭三项查询凭据通过本机 `jst_openapi_config.json` 或环境变量配置，详见单机版使用说明。
 
 仅旧远程模式需填入 HTTPS 后台地址与 API token，且后台与客户端须匹配 API schema 5；token 为 32–128 字符，只使用英文字母、数字、下划线及连字符。
 

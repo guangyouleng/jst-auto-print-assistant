@@ -213,17 +213,12 @@ UI_EVENT_LABELS = {
     "API_TRANSIENT_EXHAUSTED": "后台网络异常",
     "COMPLETION_PROOF_REQUIRED": "完成证据待核对",
     "UNKNOWN_ORDER_STATUS": "订单状态异常",
-    "CREDENTIALS_REQUIRED": "聚水潭凭据需要更新",
     "ENGINE_STOP": "自动检查停止",
 }
 
 
 class SafetyStop(RuntimeError):
     """An ambiguity or failed readback that must pause automation."""
-
-
-class CredentialSetupRequired(SafetyStop):
-    """Local credentials missing, unreadable, or rejected by JST."""
 
 
 class PermanentJobError(SafetyStop):
@@ -2068,7 +2063,6 @@ class PlannerClient:
             from jst_local_coordinator import APIError, process_request
             from jst_local_store import LeaseConflict
             from jst_openapi import JSTQueryError
-            from jst_credentials import CredentialError
             try:
                 if endpoint == "ping":
                     self._local_source.check()
@@ -2084,11 +2078,7 @@ class PlannerClient:
                 if exc.code == "completion_proof_failed":
                     raise CompletionProofError("本机回读未证明订单完成") from exc
                 raise BackendSchemaError("本机协调失败：" + exc.code) from exc
-            except CredentialError as exc:
-                raise CredentialSetupRequired(str(exc)) from exc
             except JSTQueryError as exc:
-                if exc.code in {"503", "504"}:
-                    raise CredentialSetupRequired("聚水潭凭据已失效，请更新凭据（" + exc.code + "）") from exc
                 if exc.code in {
                     "NETWORK", "TIMEOUT", "199", "505", "500",
                     "HTTP_408", "HTTP_429", "HTTP_500", "HTTP_502", "HTTP_503", "HTTP_504",
@@ -9031,7 +9021,7 @@ class AutomationEngine:
                         # Recompute warehouse, weight, shop, privacy and route
                         # from the last live readback before the real button.
                         self._preflight(latest, step, plan)
-                except (BatchCandidateChanged, CredentialSetupRequired):
+                except BatchCandidateChanged:
                     raise
                 except SafetyStop as exc:
                     raise BatchCandidateChanged(
@@ -9304,7 +9294,7 @@ class AutomationEngine:
                             raise PermanentJobError(
                                 "批量打印 API 提交前运单身份已变化"
                             )
-                except (BatchCandidateChanged, CredentialSetupRequired):
+                except BatchCandidateChanged:
                     raise
                 except SafetyStop as exc:
                     raise BatchCandidateChanged(
@@ -10371,8 +10361,6 @@ class AutomationEngine:
                     else:
                         self._auto_pause(str(exc))
                 except SafetyStop as exc:
-                    if isinstance(exc, CredentialSetupRequired):
-                        self._event("BLOCKED", "CREDENTIALS_REQUIRED", str(exc))
                     active = self._job_for_exception(attempted_job, exc)
                     if self._defer_new_running_action_recovery(
                         attempted_job, active, str(exc)
@@ -10452,8 +10440,6 @@ class DesktopApp:
         self._pending_start_settings: Optional[Settings] = None
         self._browser_open_running = False
         self._closing = False
-        self._credential_dialog = None
-        self._credentials_pending = False
         mode_name = "试运行（不打印）" if no_print else "正式自动打单"
         self.root.title(f"{APP_NAME} {APP_VERSION} - {mode_name}")
         self.root.geometry("1080x720")
@@ -10479,8 +10465,6 @@ class DesktopApp:
         # Chrome profile; it never starts the business engine or performs an
         # order action.
         self.root.after(800, self._open_browser)
-        if self.settings.local_mode and sys.platform == "win32":
-            self.root.after(400, self._check_credentials)
 
     def _variables(self) -> None:
         s = self.settings
@@ -10562,10 +10546,6 @@ class DesktopApp:
         ttk.Button(controls, text="导出异常 CSV", command=self._export).pack(
             side="left", padx=4
         )
-        if self.settings.local_mode:
-            ttk.Button(controls, text="聚水潭凭据设置", command=self._open_credentials).pack(
-                side="left", padx=4
-            )
         ttk.Label(controls, textvariable=self.status_var).pack(side="right")
 
         warning = (
@@ -10594,64 +10574,6 @@ class DesktopApp:
         self.table.configure(yscrollcommand=scroll.set)
         self.table.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
-
-    def _credential_store(self):
-        from jst_credentials import CredentialStore
-        return CredentialStore(APP_DIR / "jst_openapi_config.json")
-
-    def _check_credentials(self) -> bool:
-        if not self.settings.local_mode or sys.platform != "win32":
-            return True
-        from jst_credentials import CredentialError
-        try:
-            self._credential_store().load()
-        except CredentialError as exc:
-            self._credentials_pending = True
-            self._open_credentials(str(exc))
-            return False
-        if self._credentials_pending:
-            self._open_credentials("凭据需要更新，请验证并保存后再开始")
-            return False
-        if self._credential_dialog and self._credential_dialog.window.winfo_exists():
-            self._credential_dialog.window.lift()
-            return False
-        return True
-
-    def _open_credentials(self, reason: str = "") -> None:
-        if self._closing or not self.settings.local_mode:
-            return
-        if sys.platform != "win32":
-            messagebox.showinfo(APP_NAME, "DPAPI 凭据设置适用于 Windows；macOS 暂时使用本机 JSON 或环境变量配置")
-            return
-        if self._start_check_running or (self.engine and self.engine.is_alive()):
-            messagebox.showwarning(APP_NAME, "请先停止自动打单，等待任务安全停止后再修改凭据")
-            return
-        existing = self._credential_dialog
-        if existing and existing.window.winfo_exists():
-            existing.window.lift()
-            return
-        from jst_credentials_ui import CredentialDialog
-
-        def saved(warning):
-            self._credentials_pending = False
-            self.status_var.set("凭据已验证并加密保存；请手动开始打单")
-            if warning:
-                messagebox.showwarning(APP_NAME, warning)
-
-        self._credential_dialog = CredentialDialog(self.root, self._credential_store(), saved, reason)
-
-    def _request_credential_update(self, reason: str) -> None:
-        if self._closing or self._credentials_pending:
-            return
-        self._credentials_pending = True
-        self.status_var.set("凭据需要更新，正在等待任务安全停止…")
-
-        def task():
-            if self.engine:
-                self.engine.stop(wait=True)
-            self.messages.put(("credentials_stopped", reason))
-
-        self._run_async(task)
 
     def _choose_sku_export_date(self) -> None:
         """Open a dependency-free calendar and update the readonly date field."""
@@ -10760,8 +10682,6 @@ class DesktopApp:
 
     def _notify(self, item: dict[str, Any]) -> None:
         self.messages.put(("event", item))
-        if item.get("event_type") == "CREDENTIALS_REQUIRED":
-            self.messages.put(("credentials_required", str(item.get("message", "请更新聚水潭凭据"))))
 
     def _set_status(self, value: str) -> None:
         self.messages.put(("status", value))
@@ -10797,11 +10717,6 @@ class DesktopApp:
         self._run_async(task)
 
     def _start(self) -> None:
-        if getattr(self, "_credential_dialog", None) and self._credential_dialog.window.winfo_exists():
-            self._credential_dialog.window.lift()
-            return
-        if not self._check_credentials():
-            return
         try:
             settings = self._current_settings()
             save_settings(settings)
@@ -10836,7 +10751,7 @@ class DesktopApp:
                 cdp_endpoint(settings.debug_port, settings.browser_name)
                 PlannerClient(settings, self.workstation_id).ping()
             except Exception as exc:
-                self.messages.put(("start_credentials_error" if isinstance(exc, CredentialSetupRequired) else "start_error", str(exc)))
+                self.messages.put(("start_error", str(exc)))
             else:
                 self.messages.put(("start_ready", settings))
 
@@ -10895,8 +10810,6 @@ class DesktopApp:
             self._run_async(task)
 
     def _resume(self) -> None:
-        if not self._check_credentials():
-            return
         if self._closing:
             return
         if not self.engine:
@@ -11044,20 +10957,12 @@ class DesktopApp:
                 elif kind == "browser_open_ok":
                     self._browser_open_running = False
                     self.status_var.set(str(value))
-                elif kind == "credentials_required":
-                    self._request_credential_update(str(value))
-                elif kind == "credentials_stopped":
-                    self._restore_setting_controls()
-                    self._open_credentials(str(value))
-                elif kind in {"start_error", "start_credentials_error"}:
+                elif kind == "start_error":
                     self._start_check_running = False
                     self._pending_start_settings = None
                     self._restore_setting_controls()
                     self.status_var.set("启动前检查失败")
-                    if kind == "start_credentials_error":
-                        self._request_credential_update(str(value))
-                    else:
-                        messagebox.showerror(APP_NAME, f"启动前检查失败：{value}")
+                    messagebox.showerror(APP_NAME, f"启动前检查失败：{value}")
                 elif kind == "start_ready":
                     self._start_check_running = False
                     if not self._closing:

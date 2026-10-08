@@ -113,7 +113,7 @@ class LocalModeTests(unittest.TestCase):
         isolated = self.root / 'client-only'
         isolated.mkdir()
         for name in ('jst_auto_print_app', 'jst_print_shadow_plan', 'jst_local_store',
-                     'jst_local_coordinator', 'jst_local_source', 'jst_openapi', 'jst_credentials'):
+                     'jst_local_coordinator', 'jst_local_source', 'jst_openapi'):
             shutil.copyfile(Path(app.__file__).parent / (name + '.py'), isolated / (name + '.py'))
         script = """
 import json
