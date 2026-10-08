@@ -99,11 +99,19 @@ function Get-PeMachine {
 
 function Assert-DeploymentConfig {
     param([object]$Config)
-    $apiUrl = [string]$Config.api_url
-    $token = [string]$Config.api_token
+    # In StrictMode, reading an absent JSON property throws before mode checks.
+    # Local configurations omit remote credentials; older remote configurations
+    # omit backend_mode. Match the client's automatic mode selection.
+    $propertyNames = @($Config.PSObject.Properties.Name)
+    $mode = if ($propertyNames -contains "backend_mode") { [string]$Config.backend_mode } else { "auto" }
+    $apiUrl = if ($propertyNames -contains "api_url") { [string]$Config.api_url } else { "" }
+    $token = if ($propertyNames -contains "api_token") { [string]$Config.api_token } else { "" }
+    Assert-True ($mode -in @("auto", "local", "remote")) "deployment backend_mode must be auto, local or remote"
+    $localMode = ($mode -eq "local") -or ($mode -eq "auto" -and -not $apiUrl -and -not $token)
+    Assert-True ($propertyNames -contains "debug_port" -and $propertyNames -contains "loop_seconds") "deployment config is missing debug_port or loop_seconds"
     $debugPort = [int]$Config.debug_port
     $loopSeconds = [int]$Config.loop_seconds
-    if ([string]$Config.backend_mode -ne "local") {
+    if (-not $localMode) {
         Assert-True ($apiUrl -match '^https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+$') "deployment config must use an HTTPS API URL"
         Assert-True ($token -match '^[A-Za-z0-9_-]{32,128}$') "deployment API credential must be 32-128 ASCII letters, digits, underscores or hyphens"
     }
