@@ -44,6 +44,18 @@ def _parse_hash_lock(name: str) -> dict[str, tuple[str, tuple[str, ...]]]:
 
 
 class BuildSupplyChainTests(unittest.TestCase):
+    def test_pyinstaller_invocation_cannot_execute_extra_python_files(self):
+        script = _read("build_jst_auto_print_win10_x64.bat")
+        start = script.index('"%BUILD_VENV%\\Scripts\\python.exe" -m PyInstaller')
+        end = script.index('if errorlevel 1 (', start)
+        command_lines = [line.rstrip() for line in script[start:end].splitlines() if line.strip()]
+        # Every line except the last must continue the SAME command. Otherwise
+        # CMD runs a stray .py through file associations (possibly Python 3.12).
+        for line in command_lines[:-1]:
+            self.assertTrue(line.endswith('^'), f'premature command terminator: {line}')
+        self.assertEqual(command_lines[-1].strip(), '"jst_auto_print_app.py"')
+        self.assertEqual(sum(line.strip().endswith('.py"') for line in command_lines), 1)
+
     def test_windows_build_lock_is_complete_exact_and_hashed(self):
         lock = _parse_hash_lock("jst_auto_print_requirements_win10_x64.txt")
         expected = {

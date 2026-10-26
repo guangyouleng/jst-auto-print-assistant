@@ -129,11 +129,6 @@ echo Step 6/10 - building PyInstaller onedir payload
   --workpath "%WORK_DIR%" ^
   --specpath "%SPEC_DIR%" ^
   "jst_auto_print_app.py"
-  "jst_local_coordinator.py"
-  "jst_local_source.py"
-  "jst_local_store.py"
-  "jst_openapi.py"
-  "jst_print_shadow_plan.py"
 if errorlevel 1 (
   echo ERROR: PyInstaller failed.
   exit /b 30
