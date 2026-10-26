@@ -56,6 +56,7 @@ class BuildSupplyChainTests(unittest.TestCase):
             "pywin32-ctypes": "0.2.3",
             "pyinstaller": "6.22.2",
             "websocket-client": "1.9.0",
+            "tzdata": "2026.5",
         }
         self.assertEqual({package: value[0] for package, value in lock.items()}, expected)
         self.assertTrue(all(len(hashes) >= 1 for _, hashes in lock.values()))
@@ -70,6 +71,7 @@ class BuildSupplyChainTests(unittest.TestCase):
             "pip": "26.2",
             "setuptools": "84.0.0",
             "websocket-client": "1.9.0",
+            "tzdata": "2026.5",
         }
         self.assertEqual({package: value[0] for package, value in lock.items()}, expected)
         self.assertTrue(all(len(hashes) >= 1 for _, hashes in lock.values()))
@@ -90,6 +92,8 @@ class BuildSupplyChainTests(unittest.TestCase):
         self.assertIn("'pip':'26.2'", script)
         self.assertIn("'pyinstaller':'6.22.2'", script)
         self.assertIn("'websocket-client':'1.9.0'", script)
+        self.assertIn("'tzdata':'2026.5'", script)
+        self.assertIn("--collect-all tzdata", script)
         self.assertIn("for d in m.distributions()", script)
         self.assertIn("assert actual==expected", script)
         self.assertIn("--contents-directory \".\"", script)
@@ -114,6 +118,7 @@ class BuildSupplyChainTests(unittest.TestCase):
         self.assertIn("--only-binary=:all:", script)
         self.assertIn("'pip':'26.2'", script)
         self.assertIn("-Operation CleanRuntime", script)
+        self.assertIn("'tzdata':'2026.5'", script)
         self.assertIn('-SourceRoot "%~dp0."', script)
         self.assertNotIn('-SourceRoot "%~dp0"', script)
         self.assertIn("for d in m.distributions()", script)

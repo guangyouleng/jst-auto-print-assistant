@@ -3,8 +3,10 @@ import ast
 import contextlib
 import io
 import json
+import os
 import re
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,6 +19,43 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackagingRuntimeTests(unittest.TestCase):
+    def test_shanghai_and_local_modules_work_without_system_timezone_files(self):
+        environment = dict(os.environ, PYTHONTZPATH='')
+        code = '''
+from datetime import datetime, timedelta
+import zoneinfo
+assert not zoneinfo.TZPATH, zoneinfo.TZPATH
+import tzdata
+import jst_print_shadow_plan as planner
+assert datetime(2026, 1, 1, tzinfo=planner.BUSINESS_TIMEZONE).utcoffset() == timedelta(hours=8)
+import jst_auto_print_app as app
+app.check_local_runtime()
+print('TZDATA LOCAL RUNTIME PASS')
+'''
+        result = subprocess.run([sys.executable, '-c', code], cwd=ROOT,
+                                env=environment, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('TZDATA LOCAL RUNTIME PASS', result.stdout)
+
+    def test_missing_timezone_data_fails_instead_of_silently_using_utc(self):
+        environment = dict(os.environ, PYTHONTZPATH='')
+        code = '''
+import sys
+import zoneinfo
+assert not zoneinfo.TZPATH
+sys.modules['tzdata'] = None
+try:
+    import jst_print_shadow_plan
+except zoneinfo.ZoneInfoNotFoundError:
+    print('MISSING TZDATA REJECTED')
+else:
+    raise AssertionError('business timezone must not fall back silently')
+'''
+        result = subprocess.run([sys.executable, '-c', code], cwd=ROOT,
+                                env=environment, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('MISSING TZDATA REJECTED', result.stdout)
+
     def test_both_bat_config_validators_accept_local_and_reject_bad_configs(self):
         valid = [
             dict(backend_mode='local', debug_port=9222, loop_seconds=5),

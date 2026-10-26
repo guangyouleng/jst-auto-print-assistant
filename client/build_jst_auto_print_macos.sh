@@ -38,6 +38,7 @@ mkdir -p "$BUILD_OUTPUT" "$WORK_DIR" "$SPEC_DIR" "$STAGE_DIR"
   --clean \
   --windowed \
   --onedir \
+  --collect-all tzdata \
   --name "$APP_NAME" \
   --osx-bundle-identifier "cn.erp321.jst-safe-auto-print" \
   --add-data "$ROOT_DIR/jst_operator_config.json:." \

@@ -28,6 +28,8 @@
 
 双击 `build_jst_auto_print_win10_x64.bat`。BAT 自动创建独立构建环境并安装完整 SHA256 锁定依赖，使用 `--require-hashes --only-binary=:all:` 和 PyInstaller onedir 模式。不要使用已退役的 `build_jst_fast_v0514.bat`。
 
+Windows 构建和源码运行依赖锁都包含固定版本及 SHA256 的 `tzdata`。PyInstaller 显式收集该包，安装后无需额外安装时区库；构建阶段会确认 `Asia/Shanghai` 可用。Windows 通常没有系统 IANA 时区数据库，缺少此依赖会导致 `ZoneInfoNotFoundError`。不要通过改成 UTC 或忽略错误来绕过业务时区检查。
+
 构建入口先检查全部单机源文件及配置，随后检查版本、依赖、PE AMD64 架构、暂存 EXE 离线自检、ZIP 内容和 `SHA256SUMS.txt`。离线自检要求 `tkinter=true`、`native_cdp=true`、`local_runtime=true` 和 `self_test=PASS`；其中 `local_runtime` 加载本机规划、协调、数据源、OpenAPI 和预留模块，并仅在临时数据库中检查永久排除持久性。它不读取真实查询凭据、不发起聚水潭请求、不启动打印动作，也不修改用户的任务数据库。
 
 任一步失败都会中止构建。出现 `BUILD AND ZIP VERIFICATION PASSED` 后，ZIP 位于：

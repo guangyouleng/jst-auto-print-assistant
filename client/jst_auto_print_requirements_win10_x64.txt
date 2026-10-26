@@ -1,6 +1,7 @@
 # V0.5.25 complete build lock for CPython 3.10 AMD64 on Windows.
 #
-# Every entry is an exact wheel selected for win_amd64/cp310 on 2026-08-27.
+# Base graph selected for win_amd64/cp310 on 2026-08-27; timezone data added
+# on 2026-10-26. Every entry is an exact wheel with a verified SHA256.
 # The build must use both --require-hashes and --only-binary=:all:. Updating
 # any version requires re-resolving the complete graph and replacing its hash.
 # Browser automation uses one persistent raw-CDP connection and page-native
@@ -26,3 +27,7 @@ pyinstaller==6.22.2 \
 
 websocket-client==1.9.0 \
     --hash=sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef
+
+# IANA timezone data is required on Windows for ZoneInfo("Asia/Shanghai").
+tzdata==2026.5 \
+    --hash=sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac

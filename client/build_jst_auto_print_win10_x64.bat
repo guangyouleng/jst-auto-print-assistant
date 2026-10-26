@@ -72,7 +72,7 @@ if errorlevel 1 (
   echo ERROR: Python launcher py.exe was not found.
   exit /b 11
 )
-py -3.10-64 -c "import platform,struct,sys; assert sys.version_info[:2]==(3,10),sys.version; assert struct.calcsize('P')*8==64; assert platform.machine().upper() in ('AMD64','X86_64'),platform.machine(); print(sys.version,platform.machine())"
+py -3.10-64 -c "import platform,struct,sys; print('Selected interpreter:',sys.executable,sys.version,sys.base_prefix); assert sys.version_info[:2]==(3,10),sys.version; assert struct.calcsize('P')*8==64; assert platform.machine().upper() in ('AMD64','X86_64'),platform.machine(); print(sys.version,platform.machine())"
 if errorlevel 1 (
   echo ERROR: Python 3.10 AMD64/x64 is required. ARM64 and 32-bit Python are not accepted.
   exit /b 12
@@ -112,7 +112,7 @@ if errorlevel 1 (
   echo ERROR: hash-locked dependency installation failed. Do not bypass --require-hashes.
   exit /b 23
 )
-"%BUILD_VENV%\Scripts\python.exe" -c "import importlib.metadata as m,re,struct,websocket; expected={'pip':'26.2','setuptools':'84.0.0','altgraph':'0.17.5','packaging':'26.3','pefile':'2023.2.7','pyinstaller-hooks-contrib':'2026.7','pywin32-ctypes':'0.2.3','pyinstaller':'6.22.2','websocket-client':'1.9.0'}; norm=lambda value:re.sub(r'[-_.]+','-',value).lower(); actual={norm(d.metadata['Name']):d.version for d in m.distributions() if d.metadata['Name']}; assert actual==expected,actual; assert struct.calcsize('P')*8==64; print('hash-locked build environment: OK',actual)"
+"%BUILD_VENV%\Scripts\python.exe" -c "import importlib.metadata as m,re,struct,sys,websocket; from zoneinfo import ZoneInfo; from datetime import datetime,timedelta; print('Build interpreter:',sys.executable,sys.version,sys.base_prefix); assert sys.version_info[:2]==(3,10),sys.version; assert datetime(2026,1,1,tzinfo=ZoneInfo('Asia/Shanghai')).utcoffset()==timedelta(hours=8); expected={'pip':'26.2','setuptools':'84.0.0','altgraph':'0.17.5','packaging':'26.3','pefile':'2023.2.7','pyinstaller-hooks-contrib':'2026.7','pywin32-ctypes':'0.2.3','pyinstaller':'6.22.2','websocket-client':'1.9.0','tzdata':'2026.5'}; norm=lambda value:re.sub(r'[-_.]+','-',value).lower(); actual={norm(d.metadata['Name']):d.version for d in m.distributions() if d.metadata['Name']}; assert actual==expected,actual; assert struct.calcsize('P')*8==64; print('hash-locked build environment: OK',actual)"
 if errorlevel 1 (
   echo ERROR: installed build dependencies are incomplete.
   exit /b 24
@@ -123,6 +123,7 @@ echo Step 6/10 - building PyInstaller onedir payload
   --name "JSTAutoPrint_Win10_21H1" ^
   --contents-directory "." ^
   --collect-all websocket ^
+  --collect-all tzdata ^
   --add-data "%~dp0jst_operator_config.json;." ^
   --distpath "%DIST_ROOT%" ^
   --workpath "%WORK_DIR%" ^
