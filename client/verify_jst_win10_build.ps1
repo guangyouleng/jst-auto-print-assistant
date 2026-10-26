@@ -231,7 +231,7 @@ function Invoke-ExecutableSelfTest {
             throw ("windowed EXE returned exit code {0} and its self-test output is not valid JSON: {1}" -f $exitCode, $_.Exception.Message)
         }
         $propertyNames = @($result.PSObject.Properties.Name)
-        foreach ($name in @("version", "tkinter", "native_cdp", "self_test", "errors")) {
+        foreach ($name in @("version", "tkinter", "native_cdp", "local_runtime", "self_test", "errors")) {
             Assert-True ($propertyNames -contains $name) "windowed EXE self-test JSON is missing '$name'"
         }
         if ($exitCode -ne 0) {
@@ -244,6 +244,7 @@ function Invoke-ExecutableSelfTest {
         Assert-True ([string]$result.version -eq "0.5.25") "windowed EXE self-test version is not 0.5.25"
         Assert-True (($result.tkinter -is [bool]) -and $result.tkinter) "windowed EXE self-test did not confirm tkinter=true"
         Assert-True (($result.native_cdp -is [bool]) -and $result.native_cdp) "windowed EXE self-test did not confirm native_cdp=true"
+        Assert-True (($result.local_runtime -is [bool]) -and $result.local_runtime) "windowed EXE self-test did not confirm local_runtime=true"
         Assert-True ([string]$result.self_test -eq "PASS") "windowed EXE self-test JSON did not report self_test=PASS"
         Assert-True (@($result.errors).Count -eq 0) "windowed EXE self-test JSON reported one or more errors"
 

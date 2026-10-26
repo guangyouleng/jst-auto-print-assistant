@@ -43,7 +43,7 @@ echo Application closed normally. Diagnostic log: "%DIAG_LOG%"
 exit /b 0
 
 :prepare_runtime
-for %%F in ("jst_auto_print_app.py" "jst_operator_config.json" "jst_auto_print_runtime_requirements_win10_x64.txt" "build_jst_artifacts.ps1") do (
+for %%F in ("jst_auto_print_app.py" "jst_local_coordinator.py" "jst_local_source.py" "jst_local_store.py" "jst_openapi.py" "jst_print_shadow_plan.py" "jst_operator_config.json" "jst_auto_print_runtime_requirements_win10_x64.txt" "build_jst_artifacts.ps1") do (
   if not exist "%%~F" (
     echo ERROR: required source file is missing: %%~F
     exit /b 10
@@ -99,7 +99,7 @@ if errorlevel 1 (
   )
 )
 
-"%RUNTIME_PYTHON%" -c "import ast,importlib.metadata as m,json,pathlib,re,struct,websocket; tree=ast.parse(pathlib.Path('jst_auto_print_app.py').read_text(encoding='utf-8')); vals={t.id:n.value.value for n in tree.body if isinstance(n,ast.Assign) and isinstance(n.value,ast.Constant) for t in n.targets if isinstance(t,ast.Name)}; assert vals.get('APP_VERSION')=='0.5.25',vals.get('APP_VERSION'); assert vals.get('API_SCHEMA_VERSION')==5,vals.get('API_SCHEMA_VERSION'); assert vals.get('PLANNER_SCHEMA_VERSION')==5,vals.get('PLANNER_SCHEMA_VERSION'); expected={'pip':'26.2','setuptools':'84.0.0','websocket-client':'1.9.0'}; norm=lambda value:re.sub(r'[-_.]+','-',value).lower(); actual={norm(d.metadata['Name']):d.version for d in m.distributions() if d.metadata['Name']}; assert actual==expected,actual; c=json.loads(pathlib.Path('jst_operator_config.json').read_text(encoding='utf-8')); assert str(c.get('api_url','')).startswith('https://'); assert re.fullmatch(r'[A-Za-z0-9_-]{32,128}',str(c.get('api_token',''))); assert int(c.get('loop_seconds',0))==5,c.get('loop_seconds'); assert struct.calcsize('P')*8==64; print('source version/schema, hash-locked config and native CDP runtime: OK')"
+"%RUNTIME_PYTHON%" -c "import ast,importlib.metadata as m,json,pathlib,re,struct,websocket; tree=ast.parse(pathlib.Path('jst_auto_print_app.py').read_text(encoding='utf-8')); vals={t.id:n.value.value for n in tree.body if isinstance(n,ast.Assign) and isinstance(n.value,ast.Constant) for t in n.targets if isinstance(t,ast.Name)}; assert vals.get('APP_VERSION')=='0.5.25',vals.get('APP_VERSION'); assert vals.get('API_SCHEMA_VERSION')==5,vals.get('API_SCHEMA_VERSION'); assert vals.get('PLANNER_SCHEMA_VERSION')==5,vals.get('PLANNER_SCHEMA_VERSION'); expected={'pip':'26.2','setuptools':'84.0.0','websocket-client':'1.9.0'}; norm=lambda value:re.sub(r'[-_.]+','-',value).lower(); actual={norm(d.metadata['Name']):d.version for d in m.distributions() if d.metadata['Name']}; assert actual==expected,actual; c=json.loads(pathlib.Path('jst_operator_config.json').read_text(encoding='utf-8')); mode=c.get('backend_mode','auto'); assert mode in ('auto','local','remote'),'invalid backend_mode'; local=mode=='local' or (mode=='auto' and not c.get('api_url') and not c.get('api_token')); assert local or re.fullmatch(r'https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+',str(c.get('api_url',''))),'invalid API URL'; assert local or re.fullmatch(r'[A-Za-z0-9_-]{32,128}',str(c.get('api_token',''))),'invalid API token'; assert 1024<=int(c.get('debug_port',0))<=65535; assert int(c.get('loop_seconds',0))==5,c.get('loop_seconds'); assert struct.calcsize('P')*8==64; print('source version/schema, hash-locked config and native CDP runtime: OK')"
 if errorlevel 1 (
   echo ERROR: source, deployment config or native CDP validation failed.
   exit /b 25

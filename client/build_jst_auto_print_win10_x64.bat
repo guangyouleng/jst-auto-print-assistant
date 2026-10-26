@@ -45,6 +45,11 @@ echo Production target: a 64-bit Windows release still receiving Microsoft secur
 echo Step 1/10 - validating source inputs
 for %%F in (
   "jst_auto_print_app.py"
+  "jst_local_coordinator.py"
+  "jst_local_source.py"
+  "jst_local_store.py"
+  "jst_openapi.py"
+  "jst_print_shadow_plan.py"
   "jst_operator_config.json"
   "jst_auto_print_requirements_win10_x64.txt"
   "build_jst_artifacts.ps1"
@@ -74,7 +79,7 @@ if errorlevel 1 (
 )
 
 echo Step 3/10 - validating V0.5.25/schema source, self-test CLI and deployment configuration
-py -3.10-64 -c "import ast,json,pathlib,re; p=pathlib.Path('jst_auto_print_app.py'); source=p.read_text(encoding='utf-8'); tree=ast.parse(source); vals={t.id:n.value.value for n in tree.body if isinstance(n,ast.Assign) and isinstance(n.value,ast.Constant) for t in n.targets if isinstance(t,ast.Name)}; assert vals.get('APP_VERSION')=='0.5.25',vals.get('APP_VERSION'); assert vals.get('API_SCHEMA_VERSION')==5,vals.get('API_SCHEMA_VERSION'); assert vals.get('PLANNER_SCHEMA_VERSION')==5,vals.get('PLANNER_SCHEMA_VERSION'); assert '--self-test' in source and '--self-test-output' in source,'self-test CLI is incomplete'; c=json.loads(pathlib.Path('jst_operator_config.json').read_text(encoding='utf-8')); assert c.get('backend_mode')=='local' or re.fullmatch(r'https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+',str(c.get('api_url',''))); assert c.get('backend_mode')=='local' or re.fullmatch(r'[A-Za-z0-9_-]{32,128}',str(c.get('api_token',''))); assert 1024<=int(c.get('debug_port',0))<=65535; assert int(c.get('loop_seconds',0))==5,c.get('loop_seconds'); print('source version/schema, self-test CLI and deployment config: OK')"
+py -3.10-64 -c "import ast,json,pathlib,re; p=pathlib.Path('jst_auto_print_app.py'); source=p.read_text(encoding='utf-8'); tree=ast.parse(source); vals={t.id:n.value.value for n in tree.body if isinstance(n,ast.Assign) and isinstance(n.value,ast.Constant) for t in n.targets if isinstance(t,ast.Name)}; assert vals.get('APP_VERSION')=='0.5.25',vals.get('APP_VERSION'); assert vals.get('API_SCHEMA_VERSION')==5,vals.get('API_SCHEMA_VERSION'); assert vals.get('PLANNER_SCHEMA_VERSION')==5,vals.get('PLANNER_SCHEMA_VERSION'); assert '--self-test' in source and '--self-test-output' in source,'self-test CLI is incomplete'; c=json.loads(pathlib.Path('jst_operator_config.json').read_text(encoding='utf-8')); mode=c.get('backend_mode','auto'); assert mode in ('auto','local','remote'),'invalid backend_mode'; local=mode=='local' or (mode=='auto' and not c.get('api_url') and not c.get('api_token')); assert local or re.fullmatch(r'https://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+',str(c.get('api_url',''))),'invalid API URL'; assert local or re.fullmatch(r'[A-Za-z0-9_-]{32,128}',str(c.get('api_token',''))),'invalid API token'; assert 1024<=int(c.get('debug_port',0))<=65535; assert int(c.get('loop_seconds',0))==5,c.get('loop_seconds'); print('source version/schema, self-test CLI and deployment config: OK')"
 if errorlevel 1 (
   echo ERROR: source version, self-test CLI or deployment configuration validation failed.
   exit /b 13
@@ -123,6 +128,11 @@ echo Step 6/10 - building PyInstaller onedir payload
   --workpath "%WORK_DIR%" ^
   --specpath "%SPEC_DIR%" ^
   "jst_auto_print_app.py"
+  "jst_local_coordinator.py"
+  "jst_local_source.py"
+  "jst_local_store.py"
+  "jst_openapi.py"
+  "jst_print_shadow_plan.py"
 if errorlevel 1 (
   echo ERROR: PyInstaller failed.
   exit /b 30

@@ -11014,6 +11014,39 @@ class DesktopApp:
         self.root.destroy()
 
 
+def check_local_runtime() -> None:
+    """Exercise bundled local modules in temporary storage, without JST access."""
+    import gc
+    import tempfile
+    import jst_print_shadow_plan
+    from jst_local_coordinator import process_request
+    from jst_local_source import LocalSource
+    from jst_local_store import LeaseStore
+    from jst_openapi import JSTReadonlyClient
+
+    with tempfile.TemporaryDirectory(prefix="jst-local-self-test-") as directory:
+        try:
+            root = Path(directory)
+            client = JSTReadonlyClient(root / "unused-credentials.json", credentials={
+                "app_key": "self-test", "appsecret": "self-test", "access_token": "self-test",
+            })
+            source = LocalSource(root / "unused-credentials.json", root / "candidates.json", client=client)
+            store = LeaseStore(root / "reservations.sqlite3")
+            result = process_request("/jst-print-api/v1/ping", {}, store=store, source=source)
+            if result.get("api_schema_version") != API_SCHEMA_VERSION:
+                raise RuntimeError("本机协调模块版本不匹配")
+            store.force_skip("9000001", "19000001", "ws-self-test", "offline self-test")
+            reopened = LeaseStore(store.path)
+            if reopened.claim("9000001", "19000001", "ws-self-test") is not None:
+                raise RuntimeError("本机预留数据库未保留永久排除记录")
+            if not callable(jst_print_shadow_plan.run_live_readonly):
+                raise RuntimeError("本机规划入口缺失")
+        finally:
+            # sqlite3 context managers commit/rollback; collection closes their
+            # unreferenced connection cycles before Windows removes temp files.
+            gc.collect()
+
+
 def self_test(output_path: Optional[Path] = None) -> int:
     errors: list[str] = []
     try:
@@ -11049,12 +11082,21 @@ def self_test(output_path: Optional[Path] = None) -> int:
         errors.append("缺少 tkinter，桌面界面无法启动")
     if not native_cdp_available:
         errors.append("缺少 websocket-client，原生 CDP/fetch 调用无法运行")
+    local_runtime_available = False
+    try:
+        check_local_runtime()
+        local_runtime_available = True
+    except Exception as exc:
+        name = getattr(exc, "name", "")
+        detail = f" ({name})" if isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_.]{1,80}", name) else ""
+        errors.append(f"单机模块/预留数据库自检失败：{type(exc).__name__}{detail}")
     payload = {
         "app": APP_NAME,
         "version": APP_VERSION,
         "python": sys.version.split()[0],
         "tkinter": tkinter_available,
         "native_cdp": native_cdp_available,
+        "local_runtime": local_runtime_available,
         "browser_chrome": browser_executable("Chrome"),
         "browser_edge": browser_executable("Edge"),
         "print_service_online": print_service_online(),

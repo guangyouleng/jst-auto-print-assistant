@@ -1,3 +1,4 @@
+; Requires Inno Setup 6.3 or newer and Languages\ChineseSimplified.isl.
 #define AppVersion "0.5.25"
 #define AppExeName "JSTAutoPrint_Win10_21H1.exe"
 #define PayloadRoot SourcePath + "dist_win10_x64\JSTAutoPrint_Win10_21H1"
@@ -12,7 +13,8 @@ DefaultGroupName=聚水潭安全打单助手
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-SetupArchitecture=x64
+; Keep the default installer architecture for Inno Setup 6.3+ compatibility.
+; The application payload and installation mode below remain x64.
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041

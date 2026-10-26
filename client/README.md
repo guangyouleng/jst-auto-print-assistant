@@ -38,7 +38,7 @@ python -m unittest discover -s tests -p 'test_*.py'
 | 平台 | 入口 |
 | --- | --- |
 | Windows x64 | `build_jst_auto_print_win10_x64.bat` |
-| Windows Setup | `jst_auto_print_installer.iss`，由 Inno Setup 编译 |
+| Windows Setup | `jst_auto_print_installer.iss`，由 Inno Setup 6.3 或更新版本编译 |
 | macOS ARM64 | `build_jst_auto_print_macos.sh` |
 
 构建脚本仍以自身所在目录为工作目录。输出生成在本目录的 `dist_*` 下。运行模式配置会进入交付包；单机模式的聚水潭凭据另行保存在用户目录，不会进入安装包。旧远程配置含生产 token 的包只应提供给已授权电脑。

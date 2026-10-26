@@ -59,7 +59,7 @@ if not exist "%~dp0JSTAutoPrint_Win10_21H1.exe" (
 )
 
 echo Step 2/3 - running the packaged windowed EXE offline self-test
-echo This step requires exit=0, version=0.5.25, tkinter=true and native_cdp=true.
+echo This step requires exit=0, version=0.5.25, tkinter=true, native_cdp=true and local_runtime=true.
 echo Browser and print-service availability reported by the EXE is informational here.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify_jst_win10_build.ps1" -StageDir "%~dp0" -ExecutableSelfTest
 if errorlevel 1 (
